@@ -7,3 +7,176 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Plan {
+  ENTERPRISE
+  GROWTH
+  STANDARD
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum OrderStatus {
+  BOOKED
+  PICKED_UP
+  DELIVERED
+  CANCELLED
+}
+
+enum TicketStatus {
+  OPEN
+  CLOSED
+  ON_HOLD
+}
+
+enum TicketSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum EscalationStatus {
+  CREATED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum DocumentType {
+  POLICY
+  SOP
+  AGREEMENT
+  PRODUCT_DOC
+}
+
+enum DocumentAuthorityStatus {
+  CURRENT
+  DEPRECATED
+}
+
+enum DocumentProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Account {
+  id             String        @id @default(uuid()) @db.Uuid
+  accountId      String        @unique @map("account_id")
+  name           String        @map("name")
+  plan           Plan
+  status         AccountStatus
+  csm            String?
+  contractFile   String?       @map("contract_file")
+  premiumSupport Boolean?      @map("premium_support")
+  notes          String?
+  createdAt      DateTime      @default(now()) @map("created_at")
+  orders         Order[]
+  tickets        Ticket[]
+  escalations    Escalation[]
+  documents      Document[]
+
+  @@map("accounts")
+}
+
+model Order {
+  id                      String       @id @default(uuid()) @db.Uuid
+  orderId                 String       @unique @map("order_id")
+  accountId               String       @map("account_id")
+  carrier                 String?
+  status                  OrderStatus
+  bookedAt                DateTime?    @map("booked_at")
+  pickupWindowStart       DateTime?    @map("pickup_window_start")
+  pickupWindowEnd         DateTime?    @map("pickup_window_end")
+  pickupActualAt          DateTime?    @map("pickup_actual_at")
+  shipmentFeeInr          Int          @map("shipment_fee_inr")
+  carrierFault            Boolean?     @map("carrier_fault")
+  customerFault           Boolean?     @map("customer_fault")
+  cancellationRequestedAt DateTime?    @map("cancellation_requested_at")
+  notes                   String?
+  createdAt               DateTime     @default(now()) @map("created_at")
+  account                 Account      @relation(fields: [accountId], references: [accountId])
+  tickets                 Ticket[]
+
+  @@index([accountId])
+  @@index([accountId, orderId])
+  @@map("orders")
+}
+
+model Ticket {
+  id                    String          @id @default(uuid()) @db.Uuid
+  ticketId              String          @unique @map("ticket_id")
+  accountId             String          @map("account_id")
+  orderId               String?         @map("order_id")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  status                TicketStatus
+  severity              TicketSeverity?
+  subject               String?
+  description           String?
+  channel               String?
+  assignedTo            String?         @map("assigned_to")
+  lastCustomerMessageAt DateTime?       @map("last_customer_message_at")
+  historicalResolution  String?         @map("historical_resolution")
+  contextOnly           Boolean         @default(false) @map("context_only")
+  account               Account         @relation(fields: [accountId], references: [accountId])
+  order                 Order?          @relation(fields: [orderId], references: [orderId])
+  escalations           Escalation[]
+
+  @@index([accountId])
+  @@index([accountId, ticketId])
+  @@index([orderId])
+  @@map("tickets")
+}
+
+model Escalation {
+  id           String           @id @default(uuid()) @db.Uuid
+  escalationId String           @unique @map("escalation_id")
+  ticketId     String           @map("ticket_id")
+  accountId    String           @map("account_id")
+  reason       String
+  severity     TicketSeverity
+  summary      String
+  status       EscalationStatus
+  createdAt    DateTime         @default(now()) @map("created_at")
+  ticket       Ticket           @relation(fields: [ticketId], references: [ticketId])
+  account      Account          @relation(fields: [accountId], references: [accountId])
+
+  @@index([accountId])
+  @@index([ticketId])
+  @@map("escalations")
+}
+
+model Document {
+  id               String                   @id @default(uuid()) @db.Uuid
+  sourceFile       String                   @unique @map("source_file")
+  docType          DocumentType             @map("doc_type")
+  authorityStatus  DocumentAuthorityStatus  @map("authority_status")
+  processingStatus DocumentProcessingStatus @map("processing_status")
+  accountId        String?                  @map("account_id")
+  effectiveDate    DateTime?                @map("effective_date") @db.Date
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  account          Account?                 @relation(fields: [accountId], references: [accountId])
+  chunks           DocumentChunk[]
+
+  @@index([accountId])
+  @@index([authorityStatus])
+  @@index([docType])
+  @@map("documents")
+}
+
+model DocumentChunk {
+  id         String                      @id @default(uuid()) @db.Uuid
+  documentId String                      @map("document_id")
+  chunkIndex Int                         @map("chunk_index")
+  chunkText  String                      @map("chunk_text")
+  embedding  Unsupported("vector(768)")?
+  createdAt  DateTime                    @default(now()) @map("created_at")
+  document   Document                    @relation(fields: [documentId], references: [id])
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId])
+  @@map("document_chunks")
+}
