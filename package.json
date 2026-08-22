@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "ingest": "tsx scripts/ingest/xlsx.ts",
+    "verify": "tsx scripts/ingest/verify.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -39,6 +41,7 @@
     "eslint-config-next": "16.3.2",
     "prisma": "^7.9.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "typescript": "^5"
   }
 }
