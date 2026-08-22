@@ -1,262 +1,90 @@
-import "dotenv/config";
-
-import { buildRagContext } from "./context";
-import { retrieveChunks } from "@/lib/rag/retrieval";
-import { rankRetrievalResults } from "@/lib/rag/rank";
-import { resolveAuthority } from "@/lib/rag/resolve-authority";
-
-type TestCase = {
-  name: string;
-
-  query: string;
-
-  accountId: string | null;
-
-  expectedPrimaryFile: string;
-
-  expectedPrimaryAuthority: string;
-
-  expectedText: string;
-};
-
-const TESTS: TestCase[] = [
-  // ---------------------------------------------------------
-  // TEST 1
-  // Account-specific agreement overrides global policy
-  // ---------------------------------------------------------
-  {
-    name: "Account-specific override",
-
-    query:
-      "What is the P1 response target?",
-
-    accountId: "ACCT-001",
-
-    expectedPrimaryFile:
-      "05_Northstar_Logistics_Enterprise_Agreement.pdf",
-
-    expectedPrimaryAuthority:
-      "ACCOUNT_AGREEMENT",
-
-    expectedText:
-      "P1: 15 minutes, 24x7",
-  },
-
-  // ---------------------------------------------------------
-  // TEST 2
-  // Historical/deprecated policy
-  // ---------------------------------------------------------
-  {
-    name: "Historical policy",
-
-    query:
-      "What was the Enterprise P1 response target in Support Policy v2?",
-
-    accountId: null,
-
-    expectedPrimaryFile:
-      "02_Support_Policy_v2_DEPRECATED.pdf",
-
-    expectedPrimaryAuthority:
-      "HISTORICAL",
-
-    expectedText:
-      "Enterprise 1 hour",
-  },
-
-  // ---------------------------------------------------------
-  // TEST 3
-  // Current global policy
-  // ---------------------------------------------------------
-  {
-    name: "Current policy",
-
-    query:
-      "What is the current Enterprise P1 response target?",
-
-    accountId: null,
-
-    expectedPrimaryFile:
-      "01_Support_Policy_v3_CURRENT.pdf",
-
-    expectedPrimaryAuthority:
-      "CURRENT_POLICY",
-
-    expectedText:
-      "Enterprise 30 minutes, 24x7",
-  },
-
-  // ---------------------------------------------------------
-  // TEST 4
-  // Product documentation
-  // ---------------------------------------------------------
-  {
-    name: "Bulk Upload",
-
-    query:
-      "What is the Bulk Upload limit for Enterprise customers?",
-
-    accountId: null,
-
-    expectedPrimaryFile:
-      "04_Product_Operations_Guide_and_Known_Issues.pdf",
-
-    expectedPrimaryAuthority:
-      "CURRENT_PRODUCT_DOC",
-
-    expectedText:
-      "5,000 rows",
-  },
-];
-
-async function runTest(
-  test: TestCase,
-): Promise<boolean> {
-  const retrieved = await retrieveChunks(
-    test.query,
-    {
-      topK: 10,
-      accountId: test.accountId ?? undefined,
-    },
-  );
-
-  const ranked =
-    rankRetrievalResults(
-      test.query,
-      retrieved,
-    );
-
-  const resolution =
-    resolveAuthority(ranked);
-
-  const context =
-    buildRagContext(
-      test.query,
-      test.accountId,
-      resolution.primary,
-      resolution.supporting,
-    );
-
-  const primary = context.primary;
-
-  const filePassed =
-    primary.sourceFile ===
-    test.expectedPrimaryFile;
-
-  const authorityPassed =
-    primary.authorityClass ===
-    test.expectedPrimaryAuthority;
-
-  const textPassed =
-    primary.text.includes(
-      test.expectedText,
-    );
-
-  const passed =
-    filePassed &&
-    authorityPassed &&
-    textPassed;
-
-  if (passed) {
-    console.log(
-      `PASS | ${test.name}`,
-    );
-
-    return true;
-  }
-
-  console.log(
-    `FAIL | ${test.name}`,
-  );
-
-  console.log(
-    `  Expected file: ${test.expectedPrimaryFile}`,
-  );
-
-  console.log(
-    `  Actual file:   ${primary.sourceFile}`,
-  );
-
-  console.log(
-    `  Expected authority: ${test.expectedPrimaryAuthority}`,
-  );
-
-  console.log(
-    `  Actual authority:   ${primary.authorityClass}`,
-  );
-
-  console.log(
-    `  Expected text: ${test.expectedText}`,
-  );
-
-  return false;
-}
+import { generateAnswer } from "./generate";
 
 async function main() {
-  console.log(
-    "========== #6.8 CONTEXT EVALUATION ==========",
-  );
+  const tests = [
+    {
+      name: "Supported question",
+      question: "What is the P1 response target?",
+      context: `
+Source: 05_Northstar_Logistics_Enterprise_Agreement.pdf
+Authority: ACCOUNT_AGREEMENT
+
+For Northstar Logistics:
+P1: 15 minutes, 24x7.
+`,
+      validate: (answer: string) => {
+        const text = answer.toLowerCase();
+
+        return (
+          text.includes("15 minutes") &&
+          text.includes("24x7")
+        );
+      },
+    },
+
+    {
+      name: "Unsupported question",
+      question: "What is Priya Mehta's phone number?",
+      context: `
+Source: 05_Northstar_Logistics_Enterprise_Agreement.pdf
+Authority: ACCOUNT_AGREEMENT
+
+Dedicated CSM: Priya Mehta.
+No phone number is provided.
+`,
+      validate: (answer: string) => {
+        const text = answer.toLowerCase();
+
+        const doesNotHallucinatePhone =
+          !/\b\d{10}\b/.test(text) &&
+          !/\+\d[\d\s-]{7,}/.test(text);
+
+        const acknowledgesMissingInformation =
+          text.includes("no phone number") ||
+          text.includes("not provided") ||
+          text.includes("does not provide") ||
+          text.includes("not available") ||
+          text.includes("cannot determine") ||
+          text.includes("cannot find");
+
+        return (
+          doesNotHallucinatePhone &&
+          acknowledgesMissingInformation
+        );
+      },
+    },
+  ];
 
   let passed = 0;
-  let failed = 0;
 
-  for (const test of TESTS) {
-    try {
-      const result =
-        await runTest(test);
+  for (const test of tests) {
+    console.log(`\n========== ${test.name} ==========`);
 
-      if (result) {
-        passed++;
-      } else {
-        failed++;
-      }
-    } catch (error) {
-      failed++;
+    const result = await generateAnswer({
+      question: test.question,
+      context: test.context,
+    });
 
-      console.log(
-        `FAIL | ${test.name}`,
-      );
+    console.log(result.answer);
 
-      console.log(
-        `  Error: ${
-          error instanceof Error
-            ? error.message
-            : String(error)
-        }`,
-      );
+    const pass = test.validate(result.answer);
+
+    console.log(pass ? "PASS" : "FAIL");
+
+    if (pass) {
+      passed++;
     }
   }
 
-  console.log(
-    "\n========== RESULT ==========",
-  );
+  console.log(`\n========== RESULT ==========`);
+  console.log(`Passed: ${passed}/${tests.length}`);
 
-  console.log(
-    `Passed: ${passed}/${TESTS.length}`,
-  );
-
-  console.log(
-    `Failed: ${failed}/${TESTS.length}`,
-  );
-
-  if (failed > 0) {
-    console.log(
-      "❌ #6.8 FAILED",
-    );
-
+  if (passed !== tests.length) {
     process.exit(1);
   }
-
-  console.log(
-    "✅ #6.8 PASSED",
-  );
 }
 
 main().catch((error) => {
-  console.error(
-    "Evaluation failed:",
-    error,
-  );
-
+  console.error("Grounding test failed:", error);
   process.exit(1);
 });
