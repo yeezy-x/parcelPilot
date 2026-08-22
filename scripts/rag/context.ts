@@ -3,6 +3,9 @@ import type {
     ContextSource,
     RagContext,
   } from "./context.types";
+import { deduplicateSources } from "./context-cleanup";
+import { orderSupportingSources } from "./context-order";
+import { applyContextBudget } from "./context-budget";
   
   function toContextSource(
     result: RankedRetrievalResult,
@@ -29,10 +32,16 @@ import type {
     primary: RankedRetrievalResult,
     supporting: RankedRetrievalResult[],
   ): RagContext {
+    const primarySource = toContextSource(primary);
+    const supportingSources = deduplicateSources(supporting
+        .map(toContextSource))
+        .filter((source)=>source.chunkId !== primarySource.chunkId)
+    const orderedSupporting = orderSupportingSources(supportingSources);
+    const budgetedSupporting = applyContextBudget(orderedSupporting);
     return {
       query,
       accountId,
-      primary: toContextSource(primary),
-      supporting:supporting.map(toContextSource),
+      primary: primarySource,
+      supporting: budgetedSupporting,
     };
   }
