@@ -12,15 +12,10 @@ async function main() {
     chunks,
   ] = await Promise.all([
     prisma.account.count(),
-
     prisma.order.count(),
-
     prisma.ticket.count(),
-
     prisma.escalation.count(),
-
     prisma.document.count(),
-
     prisma.documentChunk.count(),
   ]);
 

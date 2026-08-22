@@ -172,6 +172,8 @@ model DocumentChunk {
   documentId String                      @map("document_id") @db.Uuid
   chunkIndex Int                         @map("chunk_index")
   chunkText  String                      @map("chunk_text")
+  pageStart  Int?                         @map("page_start")
+  pageEnd    Int                         @map("page_end")
   embedding  Unsupported("vector(768)")?
   createdAt  DateTime                    @default(now()) @map("created_at")
   document   Document                    @relation(fields: [documentId], references: [id])

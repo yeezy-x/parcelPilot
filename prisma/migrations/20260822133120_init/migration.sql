@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- CreateEnum
 CREATE TYPE "Plan" AS ENUM ('ENTERPRISE', 'GROWTH', 'STANDARD');
 
@@ -24,6 +26,7 @@ CREATE TYPE "DocumentAuthorityStatus" AS ENUM ('CURRENT', 'DEPRECATED');
 
 -- CreateEnum
 CREATE TYPE "DocumentProcessingStatus" AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED');
+
 
 -- CreateTable
 CREATE TABLE "accounts" (
