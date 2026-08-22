@@ -1,43 +1,26 @@
 import "dotenv/config";
 
-import {
-  retrieveChunks,
-} from "@/lib/rag/retrieval";
 
 import {
-  rankRetrievalResults,
-} from "@/lib/rag/rank";
+  buildRagContext,
+} from "./context";
+import { retrieveChunks } from "@/lib/rag/retrieval";
+import { rankRetrievalResults } from "@/lib/rag/rank";
+import { resolveAuthority } from "@/lib/rag/resolve-authority";
 
-import {
-  resolveAuthority,
-} from "@/lib/rag/resolve-authority";
+async function main() {
+  const query =
+    "What is the P1 response target?";
 
-import {
-  detectQueryIntent,
-} from "@/lib/rag/query-intent";
+  const accountId =
+    "ACCT-001";
 
-async function runTest(
-  query: string,
-  accountId?: string,
-) {
   console.log(
-    "\n========================================",
+    `Query: ${query}`,
   );
 
   console.log(
-    `QUERY: ${query}`,
-  );
-
-  console.log(
-    `ACCOUNT: ${accountId ?? "GLOBAL"}`,
-  );
-
-  console.log(
-    `INTENT: ${detectQueryIntent(query)}`,
-  );
-
-  console.log(
-    "========================================\n",
+    `Account: ${accountId}`,
   );
 
   const retrieved =
@@ -55,75 +38,30 @@ async function runTest(
       retrieved,
     );
 
-  console.log(
-    "========== RANKED RESULTS ==========",
-  );
-
-  ranked.forEach(
-    (result, index) => {
-      console.log(
-        [
-          `${index + 1}.`,
-          result.sourceFile,
-          `authority=${result.authorityClass}`,
-          `similarity=${result.similarity.toFixed(3)}`,
-          `final=${result.finalScore.toFixed(3)}`,
-        ].join(" | "),
-      );
-    },
-  );
-
   const resolution =
     resolveAuthority(ranked);
 
-  console.log(
-    "\n========== PRIMARY ==========",
-  );
+  const context =
+    buildRagContext(
+      query,
+      accountId,
+      resolution.primary,
+      resolution.supporting,
+    );
 
-  console.log(
-    `Source: ${resolution.primary.sourceFile}`,
-  );
-
-  console.log(
-    `Authority: ${resolution.primary.authorityStatus}`,
-  );
-
-  console.log(
-    `Type: ${resolution.primary.documentType}`,
-  );
-
-  console.log(
-    `Similarity: ${resolution.primary.similarity}`,
-  );
-
-  console.log(
-    `\n${resolution.primary.chunkText}`,
-  );
-}
-
-async function main() {
-  await runTest(
-    "What is the P1 response target?",
-    "ACCT-001",
-  );
-
-  await runTest(
-    "What was the historical P1 response target?",
-    undefined,
-  );
-
-  await runTest(
-    "What is the Bulk Upload limit?",
-    "ACCT-001",
+  console.dir(
+    context,
+    {
+      depth: null,
+    },
   );
 }
 
 main().catch((error) => {
   console.error(
-    "\nRetrieval evaluation failed:",
+    "Context test failed:",
+    error,
   );
-
-  console.error(error);
 
   process.exit(1);
 });
