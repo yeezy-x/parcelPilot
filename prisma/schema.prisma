@@ -169,7 +169,7 @@ model Document {
 
 model DocumentChunk {
   id         String                      @id @default(uuid()) @db.Uuid
-  documentId String                      @map("document_id")
+  documentId String                      @map("document_id") @db.Uuid
   chunkIndex Int                         @map("chunk_index")
   chunkText  String                      @map("chunk_text")
   embedding  Unsupported("vector(768)")?
