@@ -6,25 +6,21 @@ export type LookupOrderInput = {
   accountId?: string;
 };
 
-export async function lookupOrder(
-  input: LookupOrderInput,
-) {
+export async function lookupOrder(input: LookupOrderInput) {
   const order = await prisma.order.findFirst({
     where: {
-      id: input.orderId,
-      ...(input.accountId
-        ? {
-            accountId: input.accountId,
-          }
-        : {}),
+      orderId: input.orderId,
+      ...(input.accountId && { accountId: input.accountId }),
     },
   });
+
   if (!order) {
     return {
       found: false,
       order: null,
     };
   }
+
   return {
     found: true,
     order,
