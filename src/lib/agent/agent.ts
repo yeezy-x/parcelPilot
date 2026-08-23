@@ -6,7 +6,7 @@ import { isConfirmation, isRejection } from "./confirmation-utils";
 
 const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
 
-const MODEL = process.env.GEMINI_GENERATION_MODEL ?? "gemini-2.5-flash";
+const MODEL = process.env.LLM_MODEL ?? "gpt-4o-mini";
 const MAX_ITERATIONS = 5;
 
 export type AgentRequest = {
@@ -15,6 +15,7 @@ export type AgentRequest = {
 };
 
 export async function runAgent(request: AgentRequest) {
+  const toolsUsed:string[]=[]
   const pending = getPendingConfirmation();
   if (pending) {
     if (isConfirmation(request.question)) {
@@ -30,6 +31,8 @@ export async function runAgent(request: AgentRequest) {
               ? "The escalation was created successfully."
               : "The escalation could not be created.",
           toolResult: result,
+          tool:pending.toolName,
+          toolsUsed:[pending.toolName]
         };
       } catch (error) {
         clearPendingConfirmation();
@@ -41,6 +44,8 @@ export async function runAgent(request: AgentRequest) {
       return {
         type: "final" as const,
         answer: "Okay. I won't create the escalation.",
+        tool: null,
+        toolsUsed:[]
       };
     }
     return {
@@ -48,17 +53,13 @@ export async function runAgent(request: AgentRequest) {
       tool: pending.toolName,
       arguments: pending.arguments,
       message: "Please explicitly confirm whether you want me to proceed with creating the escalation.",
+      toolsUsed:[pending.toolName]
     };
   }
-
   const contents: any[] = [
     {
       role: "user",
-      parts: [
-        {
-          text: request.question,
-        },
-      ],
+      parts: [{ text: request.question }],
     },
   ];
 
@@ -88,6 +89,8 @@ Rules:
       return {
         type: "final" as const,
         answer: response.text ?? "",
+        tool: toolsUsed[0] ?? null,
+        toolsUsed,
       };
     }
     contents.push({
@@ -100,10 +103,11 @@ Rules:
       if (!call.name) continue;
       const toolName = call.name as AgentToolName;
       const args = (call.args ?? {}) as Record<string, unknown>;
-      if (toolName === "searchDocuments" || toolName === "lookupOrder" || toolName === "createEscalation") {
+      if (toolName === "searchDocuments" || toolName === "lookupOrder" || toolName === "createEscalation")
       {
         if (request.accountId) args.accountId = request.accountId;
       }
+      toolsUsed.push(toolName);
       if (toolName === "createEscalation") {
         setPendingConfirmation({
           toolName: "createEscalation",
@@ -114,6 +118,7 @@ Rules:
           tool: toolName,
           arguments: args,
           message: "This action will create an escalation and change system state. Please confirm if you want me to proceed.",
+          toolsUsed
         };
       }
 
@@ -135,7 +140,5 @@ Rules:
     }
   }
 
-  throw new Error(
-    `Agent exceeded maximum tool iterations (${MAX_ITERATIONS}).`
-  )}
+  throw new Error(`Agent exceeded maximum tool iterations (${MAX_ITERATIONS}).`)
 }
