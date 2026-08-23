@@ -1,4 +1,5 @@
 import { EscalationStatus, TicketSeverity } from "@/generated/prisma/client";
+
 import { prisma } from "@/lib/db/prisma";
 
 export type CreateEscalationInput = {
@@ -7,6 +8,35 @@ export type CreateEscalationInput = {
   severity: string;
   summary: string;
 };
+
+function mapSeverityToTicketSeverity(
+  severity: string,
+): TicketSeverity {
+  switch (severity.trim().toUpperCase()) {
+    case "P1":
+      return TicketSeverity.HIGH;
+
+    case "P2":
+      return TicketSeverity.MEDIUM;
+
+    case "P3":
+      return TicketSeverity.LOW;
+
+    case "HIGH":
+      return TicketSeverity.HIGH;
+
+    case "MEDIUM":
+      return TicketSeverity.MEDIUM;
+
+    case "LOW":
+      return TicketSeverity.LOW;
+
+    default:
+      throw new Error(
+        `Invalid escalation severity "${severity}". Expected P1, P2, P3, HIGH, MEDIUM, or LOW.`,
+      );
+  }
+}
 
 export async function createEscalation(
   input: CreateEscalationInput,
@@ -24,14 +54,18 @@ export async function createEscalation(
     );
   }
 
+  const severity = mapSeverityToTicketSeverity(
+    input.severity,
+  );
+
   const escalation = await prisma.escalation.create({
     data: {
       escalationId: crypto.randomUUID(),
       accountId: input.accountId,
-      ticketId: ticket.id,
-      severity: input.severity as TicketSeverity,
+      ticketId: ticket.ticketId,
+      severity,
       summary: input.summary,
-      status: "CREATED" as EscalationStatus,
+      status: EscalationStatus.CREATED,
       reason: "Escalation created by agent",
     },
   });
