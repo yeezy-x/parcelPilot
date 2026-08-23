@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { runAgent } from "@/lib/agent/agent";
-import {setPendingConfirmation,getPendingConfirmation,type PendingConfirmation} from "@/lib/agent/confirmation";
+import {setPendingConfirmation,getPendingConfirmation} from "@/lib/agent/confirmation";
+import { PendingConfirmation } from "@/lib/types";
 
 const chatSchema = z.object({
   message: z.string().min(1),

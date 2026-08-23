@@ -1,20 +1,17 @@
-export type PendingConfirmation = {
-    toolName: "createEscalation";
-    arguments: Record<string, unknown>;
-  };
+import type { PendingConfirmation } from "@/lib/types";
+
+let pendingConfirmation: PendingConfirmation | null = null;
   
-  let pendingConfirmation: PendingConfirmation | null = null;
-  
-  export function setPendingConfirmation(
+export function setPendingConfirmation(
     confirmation: PendingConfirmation,
   ) {
     pendingConfirmation = confirmation;
-  }
+}
   
-  export function getPendingConfirmation() {
+ export function getPendingConfirmation() {
     return pendingConfirmation;
-  }
+}
   
-  export function clearPendingConfirmation() {
+ export function clearPendingConfirmation() {
     pendingConfirmation = null;
-  }
+}

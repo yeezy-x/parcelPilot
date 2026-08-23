@@ -8,11 +8,20 @@ export type SearchDocumentsInput = {
 };
 
 export async function searchDocuments(input: SearchDocumentsInput) {
+  if (!input.accountId) {
+    return {
+      found: false,
+      primary: null,
+      supporting: [],
+    };
+  }
+
   const chunks = await retrieveChunks(input.query, {
     accountId: input.accountId,
     topK: 8,
     minSimilarity: 0,
   });
+
   if (chunks.length === 0) {
     return {
       found: false,
@@ -20,8 +29,10 @@ export async function searchDocuments(input: SearchDocumentsInput) {
       supporting: [],
     };
   }
+
   const rankedChunks = rankRetrievalResults(input.query, chunks);
   const resolved = resolveAuthority(rankedChunks);
+
   return {
     found: true,
     primary: resolved.primary,

@@ -6,23 +6,29 @@ export type LookupOrderInput = {
   accountId?: string;
 };
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
 export async function lookupOrder(input: LookupOrderInput) {
+  if (!input.accountId) {
+    return { found: false, order: null };
+  }
   const order = await prisma.order.findFirst({
     where: {
-      orderId: input.orderId,
-      ...(input.accountId && { accountId: input.accountId }),
+      accountId: input.accountId,
+      OR: [
+        { orderId: input.orderId },
+        ...(isUuid(input.orderId) ? [{ id: input.orderId }] : []),
+      ],
     },
   });
 
   if (!order) {
-    return {
-      found: false,
-      order: null,
-    };
+    return { found: false, order: null };
   }
 
-  return {
-    found: true,
-    order,
-  };
+  return { found: true, order };
 }
