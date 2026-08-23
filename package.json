@@ -10,9 +10,7 @@
     "ingest": "tsx scripts/ingest/xlsx.ts",
     "verify": "tsx scripts/ingest/verify.ts",
     "register:docs": "tsx scripts/ingest/upload-docs-to-db.ts",
-    "ingest:docs": "tsx scripts/ingest/run-docs.ts",
-    "test:pdf": "tsx scripts/ingest/test-pdf.ts",
-    "test:docs": "tsx scripts/ingest/test-docs.ts"
+    "ingest:docs": "tsx scripts/ingest/run-docs.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
