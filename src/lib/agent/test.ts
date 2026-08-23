@@ -1,68 +1,208 @@
 import "dotenv/config";
 
 import { runAgent } from "./agent";
-import {
-  getPendingConfirmation,
-  clearPendingConfirmation,
-} from "./confirmation";
 
-async function main() {
-  console.log("\n========== TURN 1 ==========\n");
+const TICKET_ID =
+  "ab07fd07-4105-4fcc-9035-c779650fc37d";
+
+const ACCOUNT_ID = "ACCT-001";
+
+async function testConfirmationAccepted() {
+  console.log(
+    "\n========================================",
+  );
+
+  console.log(
+    "#8.7 TEST 1 — USER CONFIRMS",
+  );
+
+  console.log(
+    "========================================\n",
+  );
+
+  /*
+   * TURN 1
+   */
+
+  console.log(
+    "========== TURN 1 ==========\n",
+  );
 
   const first = await runAgent({
     question:
-      "Create a P1 escalation for ticket ab07fd07-4105-4fcc-9035-c779650fc37d with the summary 'Test cancellation'.",
-    accountId: "ACCT-001",
+      `Create a P1 escalation for ticket ${TICKET_ID} ` +
+      `with the summary "Real confirmation test".`,
+
+    accountId: ACCOUNT_ID,
   });
 
-  console.dir(first, { depth: null });
+  console.dir(first, {
+    depth: null,
+  });
 
-  if (first.type !== "confirmation_required") {
+  if (
+    first.type !==
+    "confirmation_required"
+  ) {
     throw new Error(
-      "FAIL: Expected confirmation_required from first turn.",
+      "FAIL: Expected confirmation_required.",
     );
   }
 
-  const pending = getPendingConfirmation();
+  console.log(
+    "\nPASS | Agent requested confirmation",
+  );
 
-  if (!pending) {
+  /*
+   * TURN 2
+   */
+
+  console.log(
+    "\n========== TURN 2 ==========\n",
+  );
+
+  const second = await runAgent({
+    question: "yes",
+
+    accountId: ACCOUNT_ID,
+  });
+
+  console.dir(second, {
+    depth: null,
+  });
+
+  if (second.type !== "final") {
     throw new Error(
-      "FAIL: Expected a pending confirmation.",
+      "FAIL: Expected final response after confirmation.",
     );
   }
 
-  console.log("\nPASS | Confirmation requested");
+  console.log(
+    "\nPASS | User confirmation accepted",
+  );
 
-  console.log("\n========== TURN 2 ==========\n");
+  console.log(
+    "PASS | Escalation execution completed",
+  );
+}
 
-  // Simulate the user rejecting the action.
-  const confirmation = "no";
+async function testConfirmationRejected() {
+  console.log(
+    "\n========================================",
+  );
 
-  if (confirmation !== "no") {
-    throw new Error("FAIL: Test confirmation was not 'no'.");
-  }
+  console.log(
+    "#8.7 TEST 2 — USER REJECTS",
+  );
 
-  // User rejected the action, so nothing should be executed.
-  clearPendingConfirmation();
+  console.log(
+    "========================================\n",
+  );
 
-  const remaining = getPendingConfirmation();
+  /*
+   * TURN 1
+   */
 
-  if (remaining !== null) {
+  console.log(
+    "========== TURN 1 ==========\n",
+  );
+
+  const first = await runAgent({
+    question:
+      `Create a P1 escalation for ticket ${TICKET_ID} ` +
+      `with the summary "Rejected confirmation test".`,
+
+    accountId: ACCOUNT_ID,
+  });
+
+  console.dir(first, {
+    depth: null,
+  });
+
+  if (
+    first.type !==
+    "confirmation_required"
+  ) {
     throw new Error(
-      "FAIL: Pending confirmation was not cleared.",
+      "FAIL: Expected confirmation_required.",
     );
   }
 
-  console.log("PASS | Confirmation rejected");
-  console.log("PASS | Pending confirmation cleared");
-  console.log("PASS | createEscalation was NOT executed");
+  console.log(
+    "\nPASS | Agent requested confirmation",
+  );
 
-  console.log("\n========== RESULT ==========");
-  console.log("PASS | #8.6.4 Negative confirmation");
+  /*
+   * TURN 2
+   */
+
+  console.log(
+    "\n========== TURN 2 ==========\n",
+  );
+
+  const second = await runAgent({
+    question: "no",
+
+    accountId: ACCOUNT_ID,
+  });
+
+  console.dir(second, {
+    depth: null,
+  });
+
+  if (second.type !== "final") {
+    throw new Error(
+      "FAIL: Expected final response after rejection.",
+    );
+  }
+
+  if (
+    !second.answer
+      .toLowerCase()
+      .includes("won't")
+  ) {
+    throw new Error(
+      "FAIL: Expected rejection response.",
+    );
+  }
+
+  console.log(
+    "\nPASS | User confirmation rejected",
+  );
+
+  console.log(
+    "PASS | Escalation was not executed",
+  );
+}
+
+async function main() {
+  await testConfirmationAccepted();
+
+  await testConfirmationRejected();
+
+  console.log(
+    "\n========================================",
+  );
+
+  console.log(
+    "#8.7 RESULT",
+  );
+
+  console.log(
+    "========================================",
+  );
+
+  console.log(
+    "PASS | Real confirmation conversation",
+  );
 }
 
 main().catch((error) => {
-  console.error("\nFAIL | #8.6.4");
+  console.error(
+    "\nFAIL | #8.7",
+  );
+
   console.error(error);
+
   process.exit(1);
 });

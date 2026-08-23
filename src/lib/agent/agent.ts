@@ -2,11 +2,21 @@ import { GoogleGenAI } from "@google/genai";
 
 import { GEMINI_TOOLS } from "./gemini-tools";
 
+import {
+  executeAgentTool,
+  type AgentToolName,
+} from "./tools";
 
 import {
   setPendingConfirmation,
+  getPendingConfirmation,
+  clearPendingConfirmation,
 } from "./confirmation";
-import { AgentToolName, executeAgentTool } from "./tools";
+
+import {
+  isConfirmation,
+  isRejection,
+} from "./confirmation-utils";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -26,6 +36,86 @@ export type AgentRequest = {
 export async function runAgent(
   request: AgentRequest,
 ) {
+  /*
+   * ============================================================
+   * CONFIRMATION HANDLING
+   * ============================================================
+   *
+   * If a state-changing action is already waiting for
+   * confirmation, handle the user's response BEFORE calling
+   * Gemini again.
+   */
+
+  const pending = getPendingConfirmation();
+
+  if (pending) {
+    /*
+     * User explicitly confirmed.
+     */
+    if (isConfirmation(request.question)) {
+      try {
+        const result = await executeAgentTool(
+          pending.toolName,
+          pending.arguments,
+        );
+
+        clearPendingConfirmation();
+
+        return {
+          type: "final" as const,
+
+          answer: "success" in result
+            ? "The escalation was created successfully."
+            : "The escalation could not be created.",
+
+          toolResult: result,
+        };
+      } catch (error) {
+        /*
+         * Clear the pending action even if execution fails.
+         * This prevents accidental repeated execution.
+         */
+        clearPendingConfirmation();
+
+        throw error;
+      }
+    }
+
+    /*
+     * User explicitly rejected.
+     */
+    if (isRejection(request.question)) {
+      clearPendingConfirmation();
+
+      return {
+        type: "final" as const,
+        answer:
+          "Okay. I won't create the escalation.",
+      };
+    }
+
+    /*
+     * User gave something that isn't an explicit
+     * confirmation or rejection.
+     */
+    return {
+      type: "confirmation_required" as const,
+
+      tool: pending.toolName,
+
+      arguments: pending.arguments,
+
+      message:
+        "Please explicitly confirm whether you want me to proceed with creating the escalation.",
+    };
+  }
+
+  /*
+   * ============================================================
+   * NORMAL AGENT FLOW
+   * ============================================================
+   */
+
   const contents: any[] = [
     {
       role: "user",
@@ -42,50 +132,61 @@ export async function runAgent(
     iteration < MAX_ITERATIONS;
     iteration++
   ) {
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents,
-      config: {
-        tools: GEMINI_TOOLS,
+    const response =
+      await ai.models.generateContent({
+        model: MODEL,
 
-        systemInstruction: `
+        contents,
+
+        config: {
+          tools: GEMINI_TOOLS,
+
+          systemInstruction: `
 You are the ParcelPilot support AI agent.
 
 Rules:
 
-1. Use searchDocuments when the answer requires ParcelPilot
-   policies, agreements, SOPs, or product documentation.
+1. Use searchDocuments when the answer requires
+   ParcelPilot policies, agreements, SOPs, or
+   product documentation.
 
-2. Use lookupOrder when the user asks about a specific order.
+2. Use lookupOrder when the user asks about a
+   specific order.
 
-3. Never invent information that is not present in tool results.
+3. Never invent information that is not present
+   in tool results.
 
 4. The current customer account is:
    ${request.accountId ?? "none provided"}
 
 5. Never access data belonging to another account.
 
-6. When the user requests an escalation, you may call
-   createEscalation to prepare the requested action.
+6. When the user requests an escalation, you may
+   call createEscalation to prepare the requested
+   action.
 
-   The application enforces the confirmation requirement before
-   the state-changing operation is executed.
+   The application enforces the confirmation
+   requirement before the state-changing operation
+   is executed.
 
-   Do not claim that an escalation was created unless the
-   createEscalation tool actually returns a successful result.
+   Do not claim that an escalation was created
+   unless the createEscalation tool actually
+   returns a successful result.
 
-7. When a tool returns authoritative evidence, base your answer
-   on that evidence.
+7. When a tool returns authoritative evidence,
+   base your answer on that evidence.
 
-8. Keep answers concise and directly answer the user's question.
-        `,
-      },
-    });
+8. Keep answers concise and directly answer the
+   user's question.
+          `,
+        },
+      });
 
-    const functionCalls = response.functionCalls ?? [];
+    const functionCalls =
+      response.functionCalls ?? [];
 
     /*
-     * Gemini has finished and produced a normal answer.
+     * Gemini produced a normal answer.
      */
     if (functionCalls.length === 0) {
       return {
@@ -95,30 +196,34 @@ Rules:
     }
 
     /*
-     * Preserve Gemini's function-call message so that the
-     * next Gemini turn knows which tool it requested.
+     * Preserve Gemini's tool-call message.
      */
     contents.push({
       role: "model",
       parts:
-        response.candidates?.[0]?.content?.parts ?? [],
+        response.candidates?.[0]?.content?.parts ??
+        [],
     });
 
-    const functionResponseParts = [];
+    const functionResponseParts: any[] = [];
 
     for (const call of functionCalls) {
       if (!call.name) {
         continue;
       }
 
-      const toolName = call.name as AgentToolName;
+      const toolName =
+        call.name as AgentToolName;
 
       const args =
-        (call.args ?? {}) as Record<string, unknown>;
+        (call.args ?? {}) as Record<
+          string,
+          unknown
+        >;
 
       /*
-       * Account identity comes from trusted application
-       * context, not from Gemini.
+       * Account identity is controlled by the
+       * application, not Gemini.
        */
       if (
         toolName === "searchDocuments" ||
@@ -126,62 +231,75 @@ Rules:
         toolName === "createEscalation"
       ) {
         if (request.accountId) {
-          args.accountId = request.accountId;
+          args.accountId =
+            request.accountId;
         }
       }
 
       /*
+       * ========================================================
        * STATE-CHANGING TOOL GATE
+       * ========================================================
        *
-       * Never execute createEscalation automatically.
+       * NEVER execute createEscalation directly.
        *
        * Store the requested operation and return a
-       * confirmation request to the application.
+       * confirmation request.
        */
-      if (toolName === "createEscalation") {
+      if (
+        toolName === "createEscalation"
+      ) {
         setPendingConfirmation({
-          toolName: "createEscalation",
+          toolName:
+            "createEscalation",
+
           arguments: args,
         });
 
         return {
-          type: "confirmation_required" as const,
+          type:
+            "confirmation_required" as const,
+
           tool: toolName,
+
           arguments: args,
+
           message:
             "This action will create an escalation and change system state. Please confirm if you want me to proceed.",
         };
       }
 
       /*
-       * READ-ONLY tools can execute immediately.
+       * READ-ONLY tools execute immediately.
        */
-      const result = await executeAgentTool(
-        toolName,
-        args,
-      );
+      const result =
+        await executeAgentTool(
+          toolName,
+          args,
+        );
 
       functionResponseParts.push({
         functionResponse: {
           name: toolName,
+
           response: result,
+
           id: call.id,
         },
       });
     }
 
     /*
-     * Send read-only tool results back to Gemini.
-     *
-     * Gemini gets another turn and can either:
-     *
-     *   1. call another tool
-     *   2. produce the final answer
+     * Return read-only tool results to Gemini.
      */
-    if (functionResponseParts.length > 0) {
+    if (
+      functionResponseParts.length > 0
+    ) {
       contents.push({
         role: "user",
-        parts: functionResponseParts,
+
+        parts:
+          functionResponseParts,
       });
     }
   }

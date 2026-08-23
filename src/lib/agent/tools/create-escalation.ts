@@ -1,4 +1,7 @@
-import { EscalationStatus, TicketSeverity } from "@/generated/prisma/client";
+import {
+  EscalationStatus,
+  TicketSeverity,
+} from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/db/prisma";
 
@@ -54,21 +57,41 @@ export async function createEscalation(
     );
   }
 
-  const severity = mapSeverityToTicketSeverity(
-    input.severity,
-  );
+  const severity =
+    mapSeverityToTicketSeverity(
+      input.severity,
+    );
 
-  const escalation = await prisma.escalation.create({
-    data: {
-      escalationId: crypto.randomUUID(),
-      accountId: input.accountId,
-      ticketId: ticket.ticketId,
-      severity,
-      summary: input.summary,
-      status: EscalationStatus.CREATED,
-      reason: "Escalation created by agent",
-    },
-  });
+  const escalation =
+    await prisma.escalation.create({
+      data: {
+        escalationId:
+          crypto.randomUUID(),
+
+        accountId:
+          input.accountId,
+
+        /*
+         * IMPORTANT:
+         *
+         * Escalation.ticketId references
+         * Ticket.ticketId, not Ticket.id.
+         */
+        ticketId:
+          ticket.ticketId,
+
+        severity,
+
+        summary:
+          input.summary,
+
+        status:
+          EscalationStatus.CREATED,
+
+        reason:
+          "Escalation created by agent",
+      },
+    });
 
   return {
     success: true,
