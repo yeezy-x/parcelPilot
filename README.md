@@ -191,19 +191,6 @@ Intended path: this Next.js app on Vercel, same hosted Postgres (pgvector), same
 
 This README does not claim a live production URL.
 
-## Demo script (~5 minutes)
-
-Recording the video is out of scope for the coding agent. Suggested live path:
-
-1. **Northstar P1 override** — Active account: Northstar (`ACCT-001`). Ask: “What is the P1 response target for this account?” Expect retrieval that prefers the Northstar agreement over generic/deprecated policy. Do not treat a stub string as the source of truth; cite what the tool returned.
-2. **LumenWorks isolation** — Switch to LumenWorks (`ACCT-002`). Ask for a Northstar-only order (e.g. `ORD-1001`) or Northstar agreement terms. Expect no cross-account order/agreement leakage.
-3. **Cancellation / fee (multi-step)** — Back to Northstar. Use: “Can Northstar cancel ORD-1001 without a cancellation fee?” Expect `lookupOrder` plus `searchDocuments` (SOP/agreement), not a memorized fee rule.
-4. **Unsupported question** — “What is Priya Mehta’s phone number?” Expect refusal/uncertainty, not a fabricated number.
-5. **Escalate yes** — “Please escalate this urgent delivery issue” (or name a real ticket for this account). Confirm in the UI. Expect an escalation row only after confirm.
-6. **Escalate no** — Start a new conversation, request escalation again, click Cancel / send `no`. Expect no new row.
-
-Reset with **New conversation** between scenarios if pending confirmation would leak.
-
 ## Known Limitations
 
 - Chat responses do not currently populate `citations` in the UI (`toChatResult` sets `citations: []`).
